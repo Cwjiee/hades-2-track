@@ -19,6 +19,7 @@ file — no mods, no manual entry — and writes one note per run plus a dashboa
 | Save location | `%USERPROFILE%\Saved Games\Hades II\ProfileN.sav` (active profile read from `activeProfile`) |
 | Format | `SGB1` header + adler32 + lz4-compressed [luabins](https://github.com/TannerRogalsky/luabins) Lua state |
 | Run data | `GameState.RunHistory` (append-only, one entry per completed run) |
+| Which save | `ProfileN.sav` is only written at checkpoints, so mid-session `ProfileN_Temp.sav` is usually ahead; the tracker reads both and takes the one with more runs (ties → newer file) |
 | Live data | `ProfileN_Temp.sav` → `CurrentRun` |
 | Names | read from the game's `Content/Game/Text/en/*.sjson` (ids → English display names) |
 | God attribution | `Content/Scripts/TraitData_<God>.lua` |

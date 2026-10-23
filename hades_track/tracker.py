@@ -33,6 +33,11 @@ def _write_if_changed(path: pathlib.Path, text: str) -> bool:
     return True
 
 
+def choose_save(candidates: list[tuple[int, float, tuple]]) -> tuple:
+    """Highest run count wins; ties break on the newer mtime."""
+    return max(candidates, key=lambda c: (c[0], c[1]))[2]
+
+
 class Tracker:
     def __init__(self, cfg: dict | None = None):
         self.cfg = cfg or config.load()
@@ -63,19 +68,29 @@ class Tracker:
         except (OSError, savefile.SaveError, ValueError):
             return path, None, None
 
-    def load_run_records(self) -> tuple[list[extract.RunRecord], dict]:
-        main_path, temp_path = self._save_paths()
-        chosen = None
-        for path in (main_path, temp_path):
+    def _best_save(self):
+        """Pick the freshest consistent state.
+
+        ProfileN.sav is only written at checkpoints (hub entry, exit), while
+        ProfileN_Temp.sav is written during runs. Mid-session the Temp copy can be
+        several runs ahead, so the file with the highest run count wins; ties go to
+        the newer mtime.
+        """
+        candidates = []
+        for path in self._save_paths():
             if not path.is_file():
                 continue
             got = self._read(path)
-            if got[1] is not None:
-                chosen = got
-                break
-        if chosen is None:
+            if got[1] is None:
+                continue
+            header, _state = got[2]
+            candidates.append((int(header.get("runs") or 0), got[1].st_mtime, got))
+        if not candidates:
             raise RuntimeError(f"no readable save file in {self.save_dir}")
-        path, stat, (header, state) = chosen
+        return choose_save(candidates)
+
+    def load_run_records(self) -> tuple[list[extract.RunRecord], dict]:
+        path, stat, (header, state) = self._best_save()
         mtime = dt.datetime.fromtimestamp(stat.st_mtime)
         records = extract.build_records(
             header, state, self.text, self.gods,
@@ -129,11 +144,15 @@ class Tracker:
         }
 
     def live_record(self) -> extract.RunRecord | None:
-        _main, temp_path = self._save_paths()
+        main_path, temp_path = self._save_paths()
         if not temp_path.is_file():
             return None
         got = self._read(temp_path)
         if got[2] is None:
+            return None
+        main = self._read(main_path) if main_path.is_file() else (main_path, None, None)
+        # A Temp copy older than the checkpoint save belongs to an earlier session.
+        if main[1] is not None and got[1].st_mtime < main[1].st_mtime - 1:
             return None
         header, state = got[2]
         rec = extract.live_snapshot(state, self.text, self.gods, self.known_traits)
@@ -142,7 +161,7 @@ class Tracker:
         location = header.get("location") or ""
         if location.startswith("Location_Hub"):
             return None
-        if not game_running() and time.time() - got[1].st_mtime > 1800:
+        if sys.platform == "win32" and not game_running():
             return None
         return rec
 
