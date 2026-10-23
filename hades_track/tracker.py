@@ -202,17 +202,36 @@ def log(message: str, verbose: bool = True) -> None:
         pass
 
 
-def watch(cfg: dict | None = None, interval: int | None = None, verbose: bool = True) -> None:
+def watch(
+    cfg: dict | None = None,
+    interval: int | None = None,
+    verbose: bool = True,
+    exit_with_game: bool = False,
+    start_timeout: int = 600,
+    exit_grace: float = 12.0,
+) -> None:
     if not _single_instance():
         log("another watcher is already running", verbose)
         return
     cfg = cfg or config.load()
     tracker = Tracker(cfg)
     delay = interval or int(cfg.get("poll_seconds") or 15)
+
+    if exit_with_game:
+        log(f"waiting for Hades II to start (timeout {start_timeout}s)", verbose)
+        deadline = time.time() + start_timeout
+        while not game_running():
+            if time.time() >= deadline:
+                log("Hades II never started; exiting", verbose)
+                return
+            time.sleep(2)
+        log("Hades II is running", verbose)
+
     log(f"watching {tracker.save_dir} (profile {tracker.profile}) -> {tracker.runs_dir}", verbose)
     log(f"poll every {delay}s", verbose)
     last_sig: tuple | None = None
     last_hash: str | None = None
+    missing_since: float | None = None
     while True:
         try:
             # The player can switch save slots; follow the active profile.
@@ -231,7 +250,19 @@ def watch(cfg: dict | None = None, interval: int | None = None, verbose: bool = 
                     elif result["live_written"]:
                         log("live note updated", verbose)
                 last_sig = sig
+
+            if exit_with_game:
+                if game_running():
+                    missing_since = None
+                else:
+                    if missing_since is None:
+                        missing_since = time.time()
+                        log("Hades II closed, waiting for the final save", verbose)
+                    elif time.time() - missing_since > exit_grace:
+                        tracker.sync()  # last chance to catch the exit save
+                        log("done; exiting", verbose)
+                        return
         except Exception as exc:  # keep the watcher alive across transient errors
             log(f"sync failed: {exc!r}", verbose)
             time.sleep(min(delay, 10))
-        time.sleep(delay)
+        time.sleep(min(delay, 5) if exit_with_game else delay)

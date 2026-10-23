@@ -61,13 +61,31 @@ def cmd_status(args) -> int:
 
 
 def cmd_watch(args) -> int:
-    tracker.watch(interval=args.interval)
+    tracker.watch(
+        interval=args.interval,
+        exit_with_game=args.exit_when_game_closed,
+        start_timeout=args.start_timeout,
+    )
     return 0
 
 
 def cmd_rebuild(args) -> int:
     """Re-render every note from the save (overwrites generated content)."""
     return cmd_sync(argparse.Namespace(force=True))
+
+
+def cmd_launch_options(args) -> int:
+    """Print the exact Steam launch-options string for this install."""
+    root = config.PROJECT_ROOT
+    pythonw = root / ".venv" / "Scripts" / "pythonw.exe"
+    watch = root / "scripts" / "watch.py"
+    if not pythonw.is_file():
+        print(f"missing {pythonw}", file=sys.stderr)
+        return 1
+    print(
+        f'cmd /c start "" "{pythonw}" "{watch}" watch --exit-when-game-closed & %command%'
+    )
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -93,7 +111,16 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("watch", help="poll the save folder forever")
     p.add_argument("--interval", type=int)
+    p.add_argument(
+        "--exit-when-game-closed",
+        action="store_true",
+        help="wait for Hades2.exe, then exit shortly after it closes (for Steam launch options)",
+    )
+    p.add_argument("--start-timeout", type=int, default=600, help="seconds to wait for the game to start")
     p.set_defaults(func=cmd_watch)
+
+    p = sub.add_parser("launch-options", help="print the Steam launch-options string")
+    p.set_defaults(func=cmd_launch_options)
 
     args = ap.parse_args(argv)
     try:

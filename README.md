@@ -38,13 +38,37 @@ uv pip install --python .venv/Scripts/python.exe -e .
 `init` writes `%LOCALAPPDATA%\hades-track\config.json`. Edit it to change the vault,
 subfolder, or poll interval.
 
-Then one of:
+Then pick one automation mode:
+
+**A. Always on (starts at login)**
 
 ```bash
-.venv/Scripts/python.exe -m hades_track.cli sync        # import now
-.venv/Scripts/python.exe -m hades_track.cli watch       # run forever
-scripts\install-autostart.cmd                          # start at login (windowless)
+scripts\install-autostart.cmd
 ```
+
+Registers `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\hades-track.vbs`.
+It stays resident (about 33 MB, ~0.3 % CPU) and journals runs whether or not the game
+is running. `scripts\install-autostart.cmd` also starts it immediately.
+
+**B. Only while the game runs (Steam launch options)**
+
+Steam → Hades II → Properties → Launch Options, paste the string printed by:
+
+```bash
+.venv/Scripts/python.exe -m hades_track.cli launch-options
+```
+
+which is:
+
+```
+cmd /c start "" "<project>\.venv\Scripts\pythonw.exe" "<project>\scripts\watch.py" watch --exit-when-game-closed & %command%
+```
+
+The watcher waits up to 10 minutes for `Hades2.exe`, journals while you play, then does a
+final sync ~15 s after the game closes and exits. Nothing stays resident afterwards.
+Delete the Startup shortcut first if you switch to this mode; only one watcher may run.
+
+If Steam mangles the string, the fallback is mode A — run `install-autostart.cmd` again.
 
 ## Commands
 
