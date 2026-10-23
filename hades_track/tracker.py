@@ -74,7 +74,7 @@ class Tracker:
                 chosen = got
                 break
         if chosen is None:
-            raise SystemExit(f"No readable save file in {self.save_dir}")
+            raise RuntimeError(f"no readable save file in {self.save_dir}")
         path, stat, (header, state) = chosen
         mtime = dt.datetime.fromtimestamp(stat.st_mtime)
         records = extract.build_records(
@@ -231,8 +231,6 @@ def watch(cfg: dict | None = None, interval: int | None = None, verbose: bool = 
                     elif result["live_written"]:
                         log("live note updated", verbose)
                 last_sig = sig
-        except SystemExit:
-            raise
         except Exception as exc:  # keep the watcher alive across transient errors
             log(f"sync failed: {exc!r}", verbose)
             time.sleep(min(delay, 10))

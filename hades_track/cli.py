@@ -56,6 +56,7 @@ def cmd_status(args) -> int:
     state = config.load_state()
     if state.get("last_sync"):
         print(f"last sync: {state['last_sync']}")
+    print(f"watcher  : {'running' if not tracker._single_instance() else 'not running'}")
     return 0
 
 
@@ -95,7 +96,11 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_watch)
 
     args = ap.parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

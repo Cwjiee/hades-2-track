@@ -88,3 +88,13 @@ newest runs carry full detail (route, damage, kills, loot).
 ```bash
 .venv/Scripts/python.exe -m unittest discover -s tests
 ```
+
+## Troubleshooting
+
+- Log: `%LOCALAPPDATA%\hades-track\watcher.log` (the autostart watcher has no console).
+- State: `%LOCALAPPDATA%\hades-track\state.json`.
+- Cache: `%LOCALAPPDATA%\hades-track\cache\text_en.json` (delete to re-read game text after a patch).
+- `another watcher is already running` means one is already active — that is expected, only one
+  instance may write notes. Kill `pythonw.exe` to reset it.
+- If the game is updated and internal ids change, delete the cache and run `rebuild`.
+- Nothing in the game folder is modified; the tool only reads save files.
